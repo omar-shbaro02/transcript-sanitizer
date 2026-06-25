@@ -63,6 +63,8 @@ COMMON_LOCATIONS = {
 }
 
 GENERIC_SPEAKER_RE = re.compile(r"^(speaker|participant|attendee|host|moderator)\s*\d*$", re.I)
+NAME_TOKEN_RE = re.compile(r"[A-Z][A-Za-z.'-]*")
+MAX_PERSON_NAME_TOKENS = 4
 
 
 def _presidio_entities(text: str, config: dict, warnings: list[str]) -> list[Entity]:
@@ -228,6 +230,85 @@ def _add_person_alias_occurrences(text: str, entities: list[Entity]) -> list[Ent
     return entities + additions
 
 
+def _add_full_person_name_occurrences(text: str, entities: list[Entity]) -> list[Entity]:
+    full_names = sorted(
+        {e.text.strip() for e in entities if e.entity_type == "PERSON" and len(e.text.split()) > 1},
+        key=len,
+        reverse=True,
+    )
+    additions: list[Entity] = []
+    for full_name in full_names:
+        for match in re.finditer(rf"(?<!\w){re.escape(full_name)}(?!\w)", text, re.I):
+            additions.append(Entity(match.start(), match.end(), "PERSON", match.group(0), "person-full-name", 0.85, full_name))
+    return entities + additions
+
+
+def _expand_person_entities(text: str, entities: list[Entity]) -> list[Entity]:
+    expanded: list[Entity] = []
+    for entity in entities:
+        if entity.entity_type != "PERSON":
+            expanded.append(entity)
+            continue
+
+        start, end = _expand_person_span(text, entity.start, entity.end)
+        expanded_text = text[start:end]
+        expanded.append(
+            Entity(
+                start,
+                end,
+                entity.entity_type,
+                expanded_text,
+                entity.source,
+                entity.score,
+                entity.canonical_text if entity.canonical_text and entity.canonical_text != entity.text else expanded_text,
+            )
+        )
+    return expanded
+
+
+def _expand_person_span(text: str, start: int, end: int) -> tuple[int, int]:
+    current_start = start
+    current_end = end
+
+    while True:
+        before = text[:current_start]
+        separator = re.search(r"[ \t]+$", before)
+        if not separator:
+            break
+        candidate_end = separator.start()
+        match = _previous_name_token(text, candidate_end)
+        if not match or _name_token_count(text[match.start() : current_end]) > MAX_PERSON_NAME_TOKENS:
+            break
+        current_start = match.start()
+
+    while True:
+        separator = re.match(r"[ \t]+", text[current_end:])
+        if not separator:
+            break
+        candidate_start = current_end + separator.end()
+        match = NAME_TOKEN_RE.match(text, candidate_start)
+        if not match or _name_token_count(text[current_start : match.end()]) > MAX_PERSON_NAME_TOKENS:
+            break
+        current_end = match.end()
+
+    return current_start, current_end
+
+
+def _previous_name_token(text: str, end: int) -> re.Match[str] | None:
+    line_start = text.rfind("\n", 0, end) + 1
+    matches = list(NAME_TOKEN_RE.finditer(text, line_start, end))
+    if not matches:
+        return None
+    match = matches[-1]
+    if match.end() != end:
+        return None
+    return match
+
+
+def _name_token_count(value: str) -> int:
+    return len(NAME_TOKEN_RE.findall(value))
+
+
 def _type_enabled(entity_type: str, config: dict) -> bool:
     if entity_type == "DATE":
         return bool(config.get("anonymize_dates", False))
@@ -271,6 +352,7 @@ def detect_entities(text: str, config: dict) -> tuple[list[Entity], list[str], l
     entities.extend(_presidio_entities(text, config, warnings))
     entities.extend(_spacy_entities(text, config, warnings))
     entities.extend(_regex_entities(text, config))
+    entities = _expand_person_entities(text, entities)
+    entities = _add_full_person_name_occurrences(text, entities)
     entities = _add_person_alias_occurrences(text, entities)
     return merge_overlaps(entities), warnings, confidence_notes
-
