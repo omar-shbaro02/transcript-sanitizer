@@ -1,0 +1,41 @@
+# Runtime transcript data and generated outputs
+input/*
+output/*
+local_maps/*
+!input/.gitkeep
+!output/.gitkeep
+!local_maps/.gitkeep
+
+# Sensitive transcript/document formats
+*.txt
+!requirements.txt
+*.docx
+*.pdf
+
+# Local mapping JSON files; keep the shipped default config
+*.json
+!config/
+!config/default_config.json
+
+# Python/build artifacts
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+build/
+dist/
+*.spec.bak
+
+# Installer artifacts
+*.exe
+*.pkg
+*.msi
+*.dmg
+packaging/Output/
+packaging/pkgroot/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

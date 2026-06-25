@@ -1,0 +1,13 @@
+{
+  "anonymize_dates": false,
+  "anonymize_locations": true,
+  "anonymize_organizations": true,
+  "save_local_mapping": true,
+  "mapping_file_warning": true,
+  "custom_sensitive_terms": [],
+  "client_names": [],
+  "company_names": [],
+  "known_people": [],
+  "output_format": "txt"
+}
+
