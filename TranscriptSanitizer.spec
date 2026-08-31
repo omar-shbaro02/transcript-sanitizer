@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+import os
 import sys
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
@@ -8,6 +9,8 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 root = Path(SPECPATH)
+app_version = os.environ.get("APP_VERSION", "1.0.0")
+codesign_identity = os.environ.get("MACOS_APPLICATION_IDENTITY") or None
 
 
 datas = [
@@ -62,7 +65,7 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
-    codesign_identity=None,
+    codesign_identity=codesign_identity,
     entitlements_file="packaging/macos_entitlements.plist",
     icon="packaging/app.ico" if (root / "packaging" / "app.ico").exists() else None,
 )
@@ -86,8 +89,8 @@ if sys.platform == "darwin":
         info_plist={
             "CFBundleName": "TranscriptSanitizer",
             "CFBundleDisplayName": "Transcript Sanitizer",
-            "CFBundleShortVersionString": "1.0.0",
-            "CFBundleVersion": "1.0.0",
+            "CFBundleShortVersionString": app_version,
+            "CFBundleVersion": app_version,
             "NSHighResolutionCapable": True,
         },
     )

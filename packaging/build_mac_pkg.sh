@@ -23,8 +23,15 @@ pkgbuild \
   --install-location "/" \
   "$COMPONENT_PKG"
 
-productbuild \
-  --package "$COMPONENT_PKG" \
-  "$FINAL_PKG"
+if [ -n "${MACOS_INSTALLER_IDENTITY:-}" ]; then
+  productbuild \
+    --sign "$MACOS_INSTALLER_IDENTITY" \
+    --package "$COMPONENT_PKG" \
+    "$FINAL_PKG"
+else
+  productbuild \
+    --package "$COMPONENT_PKG" \
+    "$FINAL_PKG"
+fi
 
 echo "Built macOS installer at $FINAL_PKG"

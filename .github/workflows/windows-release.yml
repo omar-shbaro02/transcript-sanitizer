@@ -22,6 +22,15 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
+      - name: Check signing secrets
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE_BASE64) { throw "Required GitHub Actions secret WINDOWS_CERTIFICATE_BASE64 is not configured" }
+          if (-not $env:WINDOWS_CERTIFICATE_PASSWORD) { throw "Required GitHub Actions secret WINDOWS_CERTIFICATE_PASSWORD is not configured" }
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
@@ -31,6 +40,17 @@ jobs:
       - name: Build PyInstaller app
         run: pyinstaller --noconfirm --clean TranscriptSanitizer.spec
 
+      - name: Sign application executable
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $certificatePath = Join-Path $env:RUNNER_TEMP "windows-signing.pfx"
+          [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64))
+          & signtool sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $certificatePath /p $env:WINDOWS_CERTIFICATE_PASSWORD "dist\TranscriptSanitizer\TranscriptSanitizer.exe"
+          & signtool verify /pa /v "dist\TranscriptSanitizer\TranscriptSanitizer.exe"
+
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
@@ -39,6 +59,16 @@ jobs:
         run: |
           $env:APP_VERSION = "${{ github.ref_name }}".TrimStart("v")
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "packaging\TranscriptSanitizer.iss"
+
+      - name: Sign Windows installer
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $certificatePath = Join-Path $env:RUNNER_TEMP "windows-signing.pfx"
+          & signtool sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $certificatePath /p $env:WINDOWS_CERTIFICATE_PASSWORD "dist\installer\TranscriptSanitizerSetup.exe"
+          & signtool verify /pa /v "dist\installer\TranscriptSanitizerSetup.exe"
 
       - name: Upload installer to GitHub Release
         uses: softprops/action-gh-release@v2

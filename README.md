@@ -20,7 +20,7 @@ Never upload files from `local_maps/` to an external AI tool. Mapping files can 
 
 Windows clients should download `TranscriptSanitizerSetup.exe` from the GitHub Release and run it. The installer places the app in Program Files, creates a Start Menu shortcut, offers an optional Desktop shortcut, and supports uninstall from Windows Apps & Features.
 
-macOS clients should download `TranscriptSanitizer-macOS.pkg` from the GitHub Release and run it. The MVP package is unsigned, so macOS may require right-clicking the installer or app and choosing Open. For professional distribution, sign with an Apple Developer ID, notarize, and staple the notarization ticket.
+macOS clients should download `TranscriptSanitizer-macOS.pkg` from the GitHub Release and run it. New release packages produced after the signing setup below is configured are signed with an Apple Developer ID, notarized by Apple, and have the notarization ticket stapled.
 
 Clients do not need to install Python, pip, spaCy, Presidio, or any Python libraries manually.
 
@@ -99,6 +99,31 @@ Pushing a release tag such as `v1.0.0` triggers two GitHub Actions workflows:
 - macOS builds `TranscriptSanitizer-macOS.pkg` on a macOS runner.
 
 Both installers are uploaded as assets on the GitHub Release for that tag.
+
+### Release signing setup
+
+Release builds intentionally fail if signing credentials are missing; this prevents an unsigned installer from being published accidentally.
+
+For macOS, enroll in the Apple Developer Program and export the `Developer ID Application` and `Developer ID Installer` certificates (including their private keys) to one password-protected `.p12`. Add these GitHub Actions repository secrets:
+
+- `APPLE_CERTIFICATE_BASE64`: base64 contents of the `.p12` file
+- `APPLE_CERTIFICATE_PASSWORD`: password used when exporting the `.p12`
+- `MACOS_APPLICATION_IDENTITY`: full certificate name, such as `Developer ID Application: Company Name (TEAMID)`
+- `MACOS_INSTALLER_IDENTITY`: full certificate name, such as `Developer ID Installer: Company Name (TEAMID)`
+- `APPLE_ID`: Apple ID used for notarization
+- `APPLE_TEAM_ID`: ten-character Apple Developer team ID
+- `APPLE_APP_SPECIFIC_PASSWORD`: app-specific password created for the Apple ID
+
+For Windows, obtain an Authenticode code-signing certificate whose provider supports a password-protected `.pfx`, then add:
+
+- `WINDOWS_CERTIFICATE_BASE64`: base64 contents of the `.pfx` file
+- `WINDOWS_CERTIFICATE_PASSWORD`: password for the `.pfx`
+
+Many newly issued Windows certificates use a hardware token or cloud signing service instead of an exportable `.pfx`. If your certificate provider requires that model, replace the two SignTool steps with the provider's GitHub Actions integration; do not try to export a protected private key.
+
+On macOS, generate base64 without line wrapping with `base64 -i certificate.p12 | pbcopy`. On PowerShell, use `[Convert]::ToBase64String([IO.File]::ReadAllBytes("certificate.pfx"))` and copy the output. Never commit either certificate file or its password.
+
+After configuring the secrets, create and push a new version tag. Existing GitHub Release assets remain unsigned and must be replaced by artifacts from the new workflow run.
 
 ## Configuration
 
